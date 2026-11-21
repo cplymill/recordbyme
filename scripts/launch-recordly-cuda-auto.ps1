@@ -11,14 +11,14 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 
 if (-not $AppPath) {
-	$packagedAppPath = Join-Path $repoRoot "release\win-unpacked\Recordly.exe"
-	$installedAppPath = Join-Path $env:LOCALAPPDATA "Programs\recordly\Recordly.exe"
+	$packagedAppPath = Join-Path $repoRoot "release\win-unpacked\Record By Me.exe"
+	$installedAppPath = Join-Path $env:LOCALAPPDATA "Programs\recordbyme\Record By Me.exe"
 	if (Test-Path $packagedAppPath) {
 		$AppPath = $packagedAppPath
 	} elseif (Test-Path $installedAppPath) {
 		$AppPath = $installedAppPath
 	} else {
-		throw "Recordly.exe was not found. Build the Windows package first or pass -AppPath."
+		throw "Record By Me.exe was not found. Build the Windows package first or pass -AppPath."
 	}
 }
 

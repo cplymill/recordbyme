@@ -2669,9 +2669,9 @@ export function SettingsPanel({
 				</section>
 
 				<section className="flex flex-col gap-2">
-					<SectionLabel>About RecordByMe</SectionLabel>
+					<SectionLabel>About Record By Me</SectionLabel>
 					<p className="text-xs leading-relaxed text-muted-foreground">
-						RecordByMe is an independent fork of Recordly by webadderall and the Recordly contributors.
+						Record By Me is an independent fork of Recordly by webadderall and the Recordly contributors.
 						Recordly began as a fork of OpenScreen by Siddharth Vaddem.
 					</p>
 					<details className="text-xs text-muted-foreground">

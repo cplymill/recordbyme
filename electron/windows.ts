@@ -19,8 +19,7 @@ const nodeRequire = createRequire(import.meta.url);
 const APP_ROOT = path.join(electronWindowsDir, "..");
 const VITE_DEV_SERVER_URL = process.env["VITE_DEV_SERVER_URL"];
 const RENDERER_DIST = path.join(APP_ROOT, "dist");
-const WINDOW_ICON_FILENAME =
-	process.platform === "darwin" ? "recordlymac-512.png" : "recordly-512.png";
+const WINDOW_ICON_FILENAME = "recordbyme-512.png";
 const WINDOW_ICON_PATH = path.join(
 	process.env.VITE_PUBLIC || RENDERER_DIST,
 	"app-icons",
@@ -464,7 +463,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 		backgroundColor: "#00000000",
 		resizable: false,
 		alwaysOnTop: true,
-		// The HUD is Recordly's persistent top-level window, so it owns the
+		// The HUD is Record By Me's persistent top-level window, so it owns the
 		// Windows taskbar entry while auxiliary overlays stay hidden there.
 		...getHudOverlayTaskbarOptions(process.platform),
 		hasShadow: false,
@@ -505,7 +504,7 @@ export function createHudOverlayWindow(): BrowserWindow {
 		applyHudOverlayCaptureProtectionToWindow(win, hudOverlayHiddenFromCapture);
 		if (process.platform === "win32") {
 			// A focusable window is required for a Windows taskbar entry, but the
-			// always-on-top HUD must not steal focus when Recordly starts.
+			// always-on-top HUD must not steal focus when Record By Me starts.
 			win.showInactive();
 		} else {
 			win.show();
@@ -722,7 +721,7 @@ export function createUpdateToastWindow(): BrowserWindow {
 
 	win.setVisibleOnAllWorkspaces(true, {
 		visibleOnFullScreen: true,
-		// Keep Recordly a foreground application so macOS does not temporarily
+		// Keep Record By Me a foreground application so macOS does not temporarily
 		// remove its Dock icon while showing an overlay window.
 		skipTransformProcessType: process.platform === "darwin",
 	});
@@ -926,7 +925,7 @@ export function createEditorWindow(): BrowserWindow {
 		resizable: true,
 		alwaysOnTop: false,
 		skipTaskbar: false,
-		title: "Recordly",
+		title: "Record By Me",
 		show: false,
 		backgroundColor: "#000000",
 		webPreferences: {
@@ -1060,7 +1059,7 @@ export function createCountdownWindow(): BrowserWindow {
 
 	win.setVisibleOnAllWorkspaces(true, {
 		visibleOnFullScreen: true,
-		// Keep Recordly a foreground application so macOS does not temporarily
+		// Keep Record By Me a foreground application so macOS does not temporarily
 		// remove its Dock icon while showing the countdown.
 		skipTransformProcessType: process.platform === "darwin",
 	});
