@@ -701,6 +701,9 @@ export function normalizeProjectEditor(editor: Partial<ProjectEditorState>): Pro
 						sourceOffsetMs: isFiniteNumber(region.sourceOffsetMs) ? Math.max(0, Math.round(region.sourceOffsetMs)) : undefined,
 						sourceDurationMs: isFiniteNumber(region.sourceDurationMs) ? Math.max(endMs - startMs + (region.sourceOffsetMs || 0), Math.round(region.sourceDurationMs)) : undefined,
 						audioPath: typeof region.audioPath === "string" ? region.audioPath : "",
+						duckingAmount: isFiniteNumber(region.duckingAmount) ? clamp(region.duckingAmount, 0, 1) : undefined,
+						isMicrophone: region.isMicrophone === true || undefined,
+						isVoiceOver: region.isVoiceOver === true || undefined,
 						volume: isFiniteNumber(region.volume) ? clamp(region.volume, 0, 1) : 1,
 						normalize: Boolean(region.normalize),
 						trackIndex: isFiniteNumber(region.trackIndex)

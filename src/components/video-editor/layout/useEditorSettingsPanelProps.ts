@@ -1,5 +1,6 @@
 import type { ComponentProps, Dispatch, SetStateAction } from "react";
 import type { AspectRatio } from "@/utils/aspectRatioUtils";
+import { isSpeechSource } from "../audio/narrationRegion";
 import type { useVideoEditorAudio } from "../audio/useVideoEditorAudio";
 import type { useAutoCaptionController } from "../captions/useAutoCaptionController";
 import type { useAnnotationRegionCommands } from "../hooks/useAnnotationRegionCommands";
@@ -106,6 +107,9 @@ export function useEditorSettingsPanelProps(input: Input): ComponentProps<typeof
 		onSourceAudioTrackVolumeChange: audio.onSelectedClipSourceAudioTrackVolumeChange,
 		onSourceAudioTrackNormalizeChange: audio.onSelectedClipSourceAudioTrackNormalizeChange,
 		selectedAudioId: timeline.selectedAudioId,
+		duckingAmount: selectedAudio && !isSpeechSource(selectedAudio) ? selectedAudio.duckingAmount ?? 0 : undefined,
+		hasVoiceOver: timeline.audioRegions.some(isSpeechSource),
+		onDuckingChange: audioCommands.handleDuckingChange,
 		selectedAudioVolume: selectedAudio?.volume ?? null,
 		selectedAudioNormalize:
 			selectedAudio?.normalize ?? (timeline.selectedAudioId ? false : null),

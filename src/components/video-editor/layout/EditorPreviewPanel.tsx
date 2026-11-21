@@ -148,7 +148,7 @@ export function EditorPreviewPanel(props: Props) {
 			let lane = 1 + latest.current.regions.reduce((max, r) => Math.max(max, r.trackIndex ?? 0), -1);
 			const settings = audio.getSourceAudioTrackSettingsForClip(clip.id);
 			for (const track of tracks) {
-				audioCommands.handleAudioAdded({ start: track.startMs, end: track.endMs }, track.path, lane++, settings[track.kind]);
+				audioCommands.handleAudioAdded({ start: track.startMs, end: track.endMs }, track.path, lane++, settings[track.kind], track.kind === "mic");
 			}
 			timeline.setClipRegions(items => items.map(c => c.id === clip.id ? { ...c, muted: true, showSourceAudio: false } : c));
 		} catch (error) {

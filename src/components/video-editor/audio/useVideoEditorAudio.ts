@@ -112,7 +112,7 @@ export function useVideoEditorAudio({
 		setDefaultSourceAudioTrackSettings,
 	});
 
-	const { playSourceAudioPreview } = useAudioPreviewSync({
+	const { playSourceAudioPreview, speech } = useAudioPreviewSync({
 		audioRegions,
 		previewVolume,
 		isPlaying,
@@ -129,6 +129,7 @@ export function useVideoEditorAudio({
 	});
 
 	return {
+		speech,
 		sourceAudioFallbackPaths,
 		sourceAudioFallbackStartDelayMsByPath,
 		previewSourceAudioFallbackPaths,

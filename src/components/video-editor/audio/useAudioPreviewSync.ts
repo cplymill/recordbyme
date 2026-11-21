@@ -1,3 +1,5 @@
+import { useNarrationSpeech } from "./useNarrationSpeech";
+import { duckGain } from "./ducking";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { buildResolvedAudioPlan } from "@/lib/exporter/audioRoutingEngine";
 import { resolveMediaElementSource } from "@/lib/exporter/localMediaSource";
@@ -49,6 +51,7 @@ export function useAudioPreviewSync({
 	getSourceTrackPreviewGain,
 	onSourceFallbackLoadError,
 }: UseAudioPreviewSyncParams) {
+	const speech = useNarrationSpeech(audioRegions);
 	const resolvedPlan = useMemo(
 		() =>
 			buildResolvedAudioPlan({
@@ -117,7 +120,6 @@ export function useAudioPreviewSync({
 	}, [ensureSourceAudioRunning]);
 
 	useEffect(() => {
-		let cancelled = false;
 		const existing = audioElementsRef.current;
 		const currentIds = new Set(resolvedUserTracks.map((track) => track.id));
 
@@ -152,7 +154,6 @@ export function useAudioPreviewSync({
 					const latestAudio = existing.get(track.id);
 
 					if (
-						cancelled ||
 						latestAudio !== audio ||
 						audioElementResourcesRef.current.get(track.id) !== track.sourceRef.path
 					) {
@@ -165,13 +166,9 @@ export function useAudioPreviewSync({
 				})();
 			}
 
-			audio.volume = Math.max(0, Math.min(1, track.gain * previewVolume));
 		}
 
-		return () => {
-			cancelled = true;
-		};
-	}, [previewVolume, resolvedUserTracks]);
+	}, [resolvedUserTracks]);
 
 	useEffect(() => {
 		const existing = sourceAudioElementsRef.current;
@@ -353,6 +350,7 @@ export function useAudioPreviewSync({
 			const audio = audioElementsRef.current.get(track.id);
 			if (!audio) continue;
 
+			audio.volume = Math.max(0, Math.min(1, track.gain * previewVolume * duckGain(currentTimeMs, speech, track.duckingAmount)));
 			const startMs = track.timelineBinding.startMs;
 			const endMs = track.timelineBinding.endMs;
 			const isInRegion = currentTimeMs >= startMs && currentTimeMs < endMs;
@@ -378,7 +376,7 @@ export function useAudioPreviewSync({
 				audio.pause();
 			}
 		}
-	}, [effectiveSpeedRegions, isPlaying, resolvedUserTracks, timelineTime]);
+	}, [effectiveSpeedRegions, isPlaying, resolvedUserTracks, timelineTime, previewVolume, speech]);
 
 	useEffect(() => {
 		if (resolvedSourceTracks.length === 0) {
@@ -492,5 +490,5 @@ export function useAudioPreviewSync({
 		});
 	}, [isPlaying, resolvedSourceTracks.length, ensureSourceAudioRunning]);
 
-	return { playSourceAudioPreview };
+	return { playSourceAudioPreview, speech };
 }

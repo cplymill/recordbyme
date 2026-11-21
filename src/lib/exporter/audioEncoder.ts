@@ -1,3 +1,5 @@
+import { detectSpeech, timelineSpeech, scheduleDuckGain, type SpeechSpan } from "../../components/video-editor/audio/ducking";
+import { isSpeechSource } from "../../components/video-editor/audio/narrationRegion";
 import { WebDemuxer } from "web-demuxer";
 import { SOURCE_AUDIO_NORMALIZE_GAIN } from "@/components/video-editor/audio/audioTypes";
 import type {
@@ -121,6 +123,7 @@ interface TimelineSlice {
 }
 
 interface PreparedOfflineRender {
+	speech?: SpeechSpan[];
 	mainBufferEntry: { buffer: AudioBuffer; gain: number } | null;
 	companionEntries: Array<{ buffer: AudioBuffer; startDelaySec: number; gain: number }>;
 	regionEntries: Array<{ buffer: AudioBuffer; region: AudioRegion }>;
@@ -824,6 +827,16 @@ export class AudioProcessor {
 		return {
 			mainBufferEntry,
 			companionEntries,
+			speech: audioRegions.some(r => r.duckingAmount) ? (() => {
+				const sources = new Map<string, SpeechSpan[]>();
+				for (const { region, buffer } of regionEntries) {
+					if (isSpeechSource(region) && !sources.has(region.audioPath)) sources.set(region.audioPath, detectSpeech(buffer));
+				}
+				return timelineSpeech(regionEntries.map(({ region }) => ({ ...region,
+					startMs: this.sourceTimeToOutputTime(region.startMs, slices),
+					endMs: this.sourceTimeToOutputTime(region.endMs, slices),
+				})), sources);
+			})() : [],
 			regionEntries,
 			mutedSourceOutputRangesSec,
 			slices,
@@ -983,6 +996,7 @@ export class AudioProcessor {
 					offlineCtx,
 					buffer,
 					region,
+					prepared.speech ?? [],
 					slices,
 					outputOffsetSec,
 					chunkSec,
@@ -1005,6 +1019,7 @@ export class AudioProcessor {
 		ctx: OfflineAudioContext,
 		buffer: AudioBuffer,
 		region: AudioRegion,
+		speech: SpeechSpan[],
 		slices: TimelineSlice[],
 		chunkOutputStartSec: number,
 		chunkDurationSec: number,
@@ -1033,7 +1048,9 @@ export class AudioProcessor {
 
 		const gainNode = ctx.createGain();
 		const normalizeGain = region.normalize ? SOURCE_AUDIO_NORMALIZE_GAIN : 1;
-		gainNode.gain.value = Math.max(0, Math.min(1, region.volume * normalizeGain));
+		const baseGain = Math.max(0, Math.min(1, region.volume * normalizeGain));
+		gainNode.gain.value = baseGain;
+		if (region.duckingAmount && speech.length) scheduleDuckGain(gainNode.gain, speech, region.duckingAmount, baseGain, chunkOutputStartSec * 1000, localStartSec, localStartSec + duration);
 		gainNode.connect(ctx.destination);
 
 		const source = ctx.createBufferSource();

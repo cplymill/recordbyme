@@ -534,6 +534,9 @@ interface SettingsPanelProps {
 	onSourceAudioTrackNormalizeChange?: (id: string, normalize: boolean) => void;
 	onClipDelete?: (id: string) => void;
 	selectedAudioId?: string | null;
+	duckingAmount?: number;
+	hasVoiceOver?: boolean;
+	onDuckingChange?: (amount: number) => void;
 	selectedAudioVolume?: number | null;
 	selectedAudioNormalize?: boolean | null;
 	onAudioVolumeChange?: (volume: number) => void;
@@ -994,6 +997,7 @@ export function SettingsPanel({
 	onSourceAudioTrackNormalizeChange,
 	onClipDelete,
 	selectedAudioId,
+	duckingAmount, hasVoiceOver, onDuckingChange,
 	selectedAudioVolume,
 	selectedAudioNormalize,
 	onAudioVolumeChange,
@@ -3001,6 +3005,7 @@ export function SettingsPanel({
 						onClick={() => {
 							onAudioVolumeChange?.(1);
 							onAudioNormalizeChange?.(false);
+							onDuckingChange?.(0);
 						}}
 						className="text-[10px] text-[#2563EB] transition-opacity hover:opacity-80"
 					>
@@ -3018,6 +3023,22 @@ export function SettingsPanel({
 					formatValue={(v) => `${Math.round(v * 100)}%`}
 					parseInput={(text) => parseFloat(text.replace(/%$/, "")) / 100}
 				/>
+				{duckingAmount !== undefined && (
+					<div className="flex flex-col gap-2 rounded-lg bg-foreground/[0.03] p-2.5">
+						<label htmlFor="lower-during-voiceover" className="flex cursor-pointer items-center justify-between gap-2 text-xs">
+							Lower audio while I speak
+							<Switch id="lower-during-voiceover" checked={duckingAmount > 0}
+								onCheckedChange={enabled => onDuckingChange?.(enabled ? 0.65 : 0)} />
+						</label>
+						{duckingAmount > 0 && <>
+							<SliderControl label="Lower volume by" value={duckingAmount} defaultValue={0.65}
+								min={0.05} max={1} step={0.05} onChange={value => onDuckingChange?.(value)}
+								formatValue={value => `${Math.round(value * 100)}%`}
+								parseInput={text => parseFloat(text) / 100} />
+							{!hasVoiceOver && <p className="text-xs text-muted-foreground">Record a voice-over or detach a separate microphone track to hear suppression.</p>}
+						</>}
+					</div>
+				)}
 				<div className="flex items-center justify-between rounded-lg bg-foreground/[0.03] px-2.5 py-1.5">
 					<span className="text-[10px] text-muted-foreground">
 						{tSettings("audio.normalize", "Normalize")}

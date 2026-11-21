@@ -48,13 +48,14 @@ export function useAudioRegionCommands({
 	);
 
 	const handleAudioAdded = useCallback(
-		(span: Span, audioPath: string, trackIndex?: number, settings?: { volume: number; normalize: boolean }) => {
+		(span: Span, audioPath: string, trackIndex?: number, settings?: { volume: number; normalize: boolean }, isMicrophone?: boolean) => {
 			const id = `audio-${nextAudioIdRef.current++}`;
 			const newRegion: AudioRegion = {
 				id,
 				startMs: Math.round(span.start),
 				endMs: Math.round(span.end),
 				audioPath,
+				isMicrophone,
 				volume: settings?.volume ?? 1,
 				normalize: settings?.normalize ?? false,
 				trackIndex,
@@ -165,5 +166,7 @@ export function useAudioRegionCommands({
 		handleAudioVolumeChange,
 		handleAudioDelete,
 		handleAudioNormalizeChange,
+		handleDuckingChange: (amount: number) => setAudioRegions(items => items.map(r =>
+			r.id === selectedAudioId ? { ...r, duckingAmount: amount } : r)),
 	};
 }

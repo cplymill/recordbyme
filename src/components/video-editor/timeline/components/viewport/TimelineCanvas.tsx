@@ -50,6 +50,8 @@ const HINT_ANNOTATION = "Press A to add annotation";
 const HINT_AUDIO = "Click music icon to add audio";
 
 interface TimelineCanvasProps {
+	speech?: import("../../../audio/ducking").SpeechSpan[];
+	suppressedRegions?: import("../../../types").AudioRegion[];
 	items: TimelineRenderItem[];
 	videoDurationMs: number;
 	currentTimeMs: number;
@@ -748,6 +750,7 @@ const TimelineCanvasRows = memo(function TimelineCanvasRows({
 });
 
 export default function TimelineCanvas({
+	speech = [], suppressedRegions = [],
 	items,
 	videoDurationMs,
 	currentTimeMs,
@@ -929,7 +932,7 @@ export default function TimelineCanvas({
 		};
 	}, [getAbsoluteMsFromClientX, isSeeking, onSeek]);
 
-	const timelineRowCount = useMemo(() => {
+	const contentRowCount = useMemo(() => {
 		const annotationRowIds = new Set<string>();
 		const audioRowIds = new Set<string>();
 		let hasCaptionRow = false;
@@ -945,6 +948,7 @@ export default function TimelineCanvas({
 		const captionRows = hasCaptionRow || captionsEnabled ? 1 : 0;
 		return 2 + sourceAudioRows + annotationRowIds.size + audioRowIds.size + captionRows;
 	}, [items, showSourceAudioTrack, sourceAudioTracks.length, captionsEnabled]);
+	const timelineRowCount = contentRowCount + (suppressedRegions.length ? 1 : 0);
 	const timelineRowsMinHeightPx = getTimelineRowsMinHeightPx(timelineRowCount);
 	const timelineContentMinHeightPx = getTimelineContentMinHeightPx(timelineRowCount);
 	const timelineViewportStretchFactor = getTimelineViewportStretchFactor(timelineRowCount);
@@ -1032,6 +1036,25 @@ export default function TimelineCanvas({
 				className="relative z-10 flex flex-1 min-h-0 flex-col"
 				style={{ minHeight: timelineRowsMinHeightPx }}
 			>
+				{suppressedRegions.length > 0 && (
+					<div className="relative h-8 shrink-0 overflow-hidden border-b border-foreground/10 bg-editor-bg" aria-label="Audio suppression track">
+						<div className="absolute inset-y-1" style={{ insetInlineStart: sidebarWidth, insetInlineEnd: 0 }}>
+							{suppressedRegions.flatMap(region => speech.map(span => {
+								const start = Math.max(range.start, region.startMs, span.start - 90);
+								const end = Math.min(range.end, region.endMs, span.end + 260);
+								if (end <= start) return null;
+								const label = `Lower volume by ${Math.round((region.duckingAmount ?? 0) * 100)}%`;
+								return <button type="button" key={region.id + ":" + span.start}
+									title={label} aria-label={label}
+									onMouseDown={event => event.stopPropagation()}
+									onClick={event => { event.stopPropagation(); onSelectAudio?.(region.id); }}
+									style={{ insetInlineStart: valueToPixels(start - range.start), width: valueToPixels(end - start) }}
+									className="absolute inset-y-0 overflow-hidden rounded bg-teal-700 text-xs text-white hover:bg-teal-600">−</button>;
+							}))}
+						</div>
+						<span className="pointer-events-none absolute inset-y-0 flex items-center px-1 text-[10px] text-foreground">Suppression</span>
+					</div>
+				)}
 				<TimelineCanvasRows
 					items={items}
 					videoDurationMs={videoDurationMs}

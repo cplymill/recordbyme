@@ -1,4 +1,4 @@
-import { isNarration } from "../../audio/narrationRegion";
+import { isNarration, isMicrophone } from "../../audio/narrationRegion";
 import { formatClipSpeedLabel } from "../../clipSpeedChange";
 import type {
 	AnnotationRegion,
@@ -30,6 +30,7 @@ export function getAnnotationLabel(region: AnnotationRegion): string {
 }
 
 export function getAudioLabel(region: AudioRegion): string {
+	if (isMicrophone(region)) return "Microphone";
 	if (isNarration(region)) return "Narration";
 	return (
 		region.audioPath

@@ -1,3 +1,4 @@
+import { isNarration, isMicrophone } from "../audio/narrationRegion";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -50,6 +51,8 @@ async function joinAudio(left: AudioRegion, right: AudioRegion): Promise<AudioRe
 	return {
 		...left,
 		audioPath: path,
+		isMicrophone: isMicrophone(left) && isMicrophone(right),
+		isVoiceOver: isNarration(left) && isNarration(right),
 		endMs,
 		sourceOffsetMs: 0,
 		sourceDurationMs: length,
@@ -86,7 +89,8 @@ export function JoinClips({ timeline, settingsForClip }: Props) {
 		{ left: selected, right: sorted[index + 1], label: "Join with next" },
 	].filter(({ left, right }) => {
 		if (!left || !right || left.endMs > right.startMs) return false;
-		if ("audioPath" in left) return true;
+		if ("audioPath" in left && "audioPath" in right) return (left.duckingAmount ?? 0) === (right.duckingAmount ?? 0);
+		if ("audioPath" in left) return false;
 		const next = right as ClipRegion;
 		const a = settingsForClip(left.id),
 			b = settingsForClip(right.id);

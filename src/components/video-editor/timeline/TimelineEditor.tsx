@@ -32,6 +32,7 @@ import {
 } from "./sourceAudioTracks";
 
 export interface TimelineEditorProps {
+	speech?: import("../audio/ducking").SpeechSpan[];
 	videoDuration: number;
 	currentTime: number;
 	playheadTime?: number;
@@ -146,6 +147,7 @@ const TimelineEditor = forwardRef<TimelineEditorHandle, TimelineEditorProps>(
 			onSelectAnnotation,
 			speedRegions = [],
 			onSpeedSpanChange,
+			speech,
 			audioRegions = [],
 			onAudioAdded,
 			onAudioSpanChange,
@@ -480,6 +482,8 @@ const TimelineEditor = forwardRef<TimelineEditorHandle, TimelineEditorProps>(
 							timelineRef={timelineContainerRef}
 						/>
 						<TimelineCanvas
+							speech={speech}
+							suppressedRegions={audioRegions.filter(r => r.duckingAmount)}
 							items={timelineItems}
 							videoDurationMs={totalMs}
 							currentTimeMs={currentTimeMs}

@@ -6,6 +6,7 @@ export type SourceTrackId = "mic" | "system" | "mixed";
 export type ResolvedAudioTrackKind = "user" | "system" | "mic" | "mixed" | "embedded";
 
 export interface ResolvedAudioTrack {
+	duckingAmount?: number;
 	id: string;
 	kind: ResolvedAudioTrackKind;
 	sourceRef: {
@@ -76,6 +77,7 @@ export function buildResolvedAudioPlan(input: {
 	const tracks: ResolvedAudioTrack[] = resolvedRegions.map((region) => ({
 		id: `user:${region.id}`,
 		kind: "user",
+		duckingAmount: region.duckingAmount,
 		sourceRef: {
 			path: region.audioPath,
 			...(region.sourceOffsetMs ? { offsetMs: region.sourceOffsetMs } : {}),

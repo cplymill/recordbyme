@@ -13,7 +13,7 @@
 		"url": "https://github.com/cplymill/recordbyme/issues"
 	},
 	"private": true,
-	"version": "1.4.1-preview.1",
+	"version": "1.4.1-preview.2",
 	"type": "module",
 	"scripts": {
 		"sync": "node scripts/sync-github.mjs",

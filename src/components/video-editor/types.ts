@@ -534,6 +534,9 @@ export type {
 } from "@/components/video-editor/audio/audioTypes";
 
 export interface AudioRegion {
+	duckingAmount?: number;
+	isVoiceOver?: boolean;
+	isMicrophone?: boolean;
 	sourceOffsetMs?: number;
 	sourceDurationMs?: number;
 	id: string;
