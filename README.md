@@ -4,6 +4,10 @@ RecordByMe is an independent fork of [Recordly](https://github.com/webadderallor
 
 RecordByMe uses the same GNU Affero General Public License v3. Recordly began as a fork of OpenScreen by Siddharth Vaddem. The original copyright and MIT notice for the OpenScreen code are included in [LICENSE.md](LICENSE.md).
 
+## Development
+
+I use OpenAI Codex and other AI tools to help develop, debug, and test RecordByMe.
+
 ## Original Recordly documentation
 
 The following documentation, acknowledgements, and release links belong to the upstream Recordly project.
