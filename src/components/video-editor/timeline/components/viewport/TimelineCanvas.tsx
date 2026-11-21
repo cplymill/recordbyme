@@ -417,8 +417,9 @@ function AudioItemWithWaveform({
 	const { peaks } = useTimelineAudioPeaks(item.audioPath ?? null);
 	const normalizedWaveformSpan = useMemo(() => {
 		const duration = Math.max(0, waveformSpan.end - waveformSpan.start);
-		return { start: 0, end: duration };
-	}, [waveformSpan.end, waveformSpan.start]);
+		const start = Math.max(0, (item.sourceSpan?.start ?? 0) + (waveformSpan.end === span.end ? waveformSpan.start - span.start : 0));
+		return { start, end: start + duration };
+	}, [item.sourceSpan, span.end, span.start, waveformSpan.end, waveformSpan.start]);
 	return (
 		<Item
 			id={item.id}

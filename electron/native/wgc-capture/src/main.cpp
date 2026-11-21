@@ -2,6 +2,7 @@
 #include "mf_encoder.h"
 #include "monitor_utils.h"
 #include "wasapi_loopback.h"
+#include "audio_timing.h"
 
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.System.h>
@@ -19,8 +20,7 @@
 static std::atomic<bool> g_stopRequested{false};
 static std::atomic<bool> g_pauseRequested{false};
 static std::atomic<int64_t> g_lastFrameTimestampHns{0};
-static std::atomic<int64_t> g_pauseStartTimestampHns{0};
-static std::atomic<int64_t> g_accumulatedPausedHns{0};
+static RecordingClock recordingClock;
 static std::mutex g_stopMutex;
 static std::condition_variable g_stopCv;
 
@@ -169,31 +169,16 @@ static int64_t queryPerformanceCounterHns() {
 }
 
 static int64_t adjustedVideoTimestampHns(int64_t timestampHns) {
-    int64_t accumulatedPausedHns = g_accumulatedPausedHns.load();
-    if (g_pauseRequested.load()) {
-        const int64_t pauseStart = g_pauseStartTimestampHns.load();
-        if (pauseStart > 0 && timestampHns > pauseStart) {
-            accumulatedPausedHns += (timestampHns - pauseStart);
-        }
-    }
-
-    int64_t adjustedTimestampHns = timestampHns - accumulatedPausedHns;
-    if (adjustedTimestampHns < 0) {
-        adjustedTimestampHns = 0;
-    }
-    return adjustedTimestampHns;
+    return recordingClock.recordingTime(timestampHns);
 }
 
 static void openActivePauseAt(int64_t timestampHns) {
-    g_pauseStartTimestampHns.store(timestampHns);
+    recordingClock.pause(timestampHns);
     g_pauseRequested.store(true);
 }
 
 static void closeActivePauseAt(int64_t timestampHns) {
-    const int64_t pauseStart = g_pauseStartTimestampHns.exchange(0);
-    if (pauseStart > 0 && timestampHns > pauseStart) {
-        g_accumulatedPausedHns.fetch_add(timestampHns - pauseStart);
-    }
+    recordingClock.resume(timestampHns);
     g_pauseRequested.store(false);
 }
 
@@ -211,10 +196,9 @@ static void writeCompanionAudioTimingMetadata(
         return;
     }
 
-    int64_t startDelayMs = (firstPacketQpcHns - firstVideoTimestampHns + 5000) / 10000;
-    if (startDelayMs < 0) {
-        startDelayMs = 0;
-    }
+    const int64_t startDelayMs = (std::max)(
+        int64_t{0}, (recordingClock.recordingTime(firstPacketQpcHns) -
+                     recordingClock.recordingTime(firstVideoTimestampHns) + 5000) / 10000);
 
     std::ofstream metadataFile(audioPath + ".json", std::ios::trunc);
     if (!metadataFile) {
@@ -223,6 +207,13 @@ static void writeCompanionAudioTimingMetadata(
     }
 
     metadataFile << "{\"startDelayMs\":" << startDelayMs;
+    metadataFile << ",\"audioSyncRevision\":4";
+    metadataFile << ",\"firstFrameQpcHns\":" << firstVideoTimestampHns;
+    metadataFile << ",\"firstPacketQpcHns\":" << firstPacketQpcHns;
+    metadataFile << ",\"pauseBeforeAudioMs\":"
+                 << ((firstPacketQpcHns - firstVideoTimestampHns) -
+                     (recordingClock.recordingTime(firstPacketQpcHns) -
+                      recordingClock.recordingTime(firstVideoTimestampHns))) / 10000;
     metadataFile << ",\"capturedDurationMs\":" << capture.capturedDurationMs();
     metadataFile << ",\"dataBytes\":" << capture.totalDataBytes();
     metadataFile << ",\"sampleRate\":" << capture.sampleRate();
@@ -240,6 +231,9 @@ static void writeCompanionAudioTimingMetadata(
     const uint32_t timestampErrorCount = capture.timestampErrorCount();
     if (timestampErrorCount > 0) {
         metadataFile << ",\"timestampErrorCount\":" << timestampErrorCount;
+    }
+    if (capture.loopbackTimestampFallbackCount() > 0) {
+        metadataFile << ",\"loopbackTimestampFallbackCount\":" << capture.loopbackTimestampFallbackCount();
     }
     metadataFile << "}";
 }
@@ -344,8 +338,6 @@ int main(int argc, char* argv[]) {
     std::atomic<bool> recordingStartedAnnounced{false};
     session.setFrameCallback([&](ID3D11Texture2D* texture, int64_t timestampHns) {
         g_lastFrameTimestampHns = timestampHns;
-        int64_t expectedFirstVideoTimestampHns = -1;
-        firstVideoTimestampHns.compare_exchange_strong(expectedFirstVideoTimestampHns, timestampHns);
         if (g_stopRequested) return;
 
         if (g_pauseRequested) return;
@@ -353,6 +345,8 @@ int main(int argc, char* argv[]) {
         const int64_t adjustedTimestampHns = adjustedVideoTimestampHns(timestampHns);
 
         if (encoder.writeFrame(texture, adjustedTimestampHns)) {
+            int64_t expectedFirstVideoTimestampHns = -1;
+            firstVideoTimestampHns.compare_exchange_strong(expectedFirstVideoTimestampHns, timestampHns);
             const int64_t writtenFrames = frameCount.fetch_add(1) + 1;
             if (writtenFrames == 1 && !recordingStartedAnnounced.exchange(true)) {
                 std::cout << "Recording started" << std::endl;
@@ -366,8 +360,8 @@ int main(int argc, char* argv[]) {
     stdinThread.detach();
 
     // Initialize WASAPI captures (but don't start yet)
-    WasapiCapture loopback;
-    WasapiCapture micCapture;
+    WasapiCapture loopback(recordingClock);
+    WasapiCapture micCapture(recordingClock);
     bool audioActive = false;
     bool audioInitialized = false;
     bool micActive = false;
@@ -415,7 +409,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Stop capture and finalize
-    const int64_t adjustedStopTimestampHns = adjustedVideoTimestampHns(queryPerformanceCounterHns());
+    const int64_t stopTimestampHns = queryPerformanceCounterHns();
+    const int64_t adjustedStopTimestampHns = adjustedVideoTimestampHns(stopTimestampHns);
     session.stopCapture();
     if (audioActive) loopback.stop();
     if (micActive) micCapture.stop();
@@ -440,10 +435,7 @@ int main(int argc, char* argv[]) {
     }
 
     if (audioActive) {
-        writeCompanionAudioTimingMetadata(
-            config.audioOutputPath,
-            firstVideoTimestampHns.load(),
-            loopback);
+        writeCompanionAudioTimingMetadata(config.audioOutputPath, firstVideoTimestampHns.load(), loopback);
     }
     if (micActive) {
         writeCompanionAudioTimingMetadata(

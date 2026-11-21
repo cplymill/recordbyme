@@ -283,6 +283,9 @@ interface Window {
 			message?: string;
 			error?: string;
 		}>;
+		joinAudio: (parts: Array<{path: string; offset: number; duration: number; gain: number}>) => Promise<string>;
+		detachRecordingAudio: (path: string, start: number, end: number, speed: number) => Promise<Array<{ path: string; kind: string; startMs: number; endMs: number }>>;
+		saveNarration: (bytes: ArrayBuffer) => Promise<string>;
 		storeRecordedVideo: (
 			videoData: ArrayBuffer,
 			fileName: string,

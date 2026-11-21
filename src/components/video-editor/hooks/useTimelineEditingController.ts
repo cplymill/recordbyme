@@ -180,7 +180,6 @@ export function useTimelineEditingController(input: Input) {
 		setZoomRegions: timeline.setZoomRegions,
 		setAnnotationRegions: timeline.setAnnotationRegions,
 		setSpeedRegions: timeline.setSpeedRegions,
-		setAudioRegions: timeline.setAudioRegions,
 		selectedClipId: timeline.selectedClipId,
 		setSelectedClipId: timeline.setSelectedClipId,
 		setSelectedZoomId: timeline.setSelectedZoomId,
@@ -192,6 +191,7 @@ export function useTimelineEditingController(input: Input) {
 		t: input.t,
 	});
 	const audioCommands = useAudioRegionCommands({
+		setSelectedClipId: timeline.setSelectedClipId,
 		setAudioRegions: timeline.setAudioRegions,
 		selectedAudioId: timeline.selectedAudioId,
 		setSelectedAudioId: timeline.setSelectedAudioId,

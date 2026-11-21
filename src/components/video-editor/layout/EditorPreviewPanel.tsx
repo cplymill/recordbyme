@@ -1,3 +1,9 @@
+import { JoinClips } from "./JoinClips";
+import { useRef, useState } from "react";
+import { toast } from "sonner";
+import { getLocalFilePathFromResource } from "@/lib/exporter/mediaResource";
+import { NarrationControls, type NarrationAction } from "../audio/NarrationControls";
+import type { useAudioRegionCommands } from "../hooks/useAudioRegionCommands";
 import {
 	CaretDown,
 	Check,
@@ -21,6 +27,7 @@ import {
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
+	DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent,
 } from "@/components/ui/dropdown-menu";
 import type { useI18n } from "@/contexts/I18nContext";
 import { ASPECT_RATIOS, type AspectRatio, getAspectRatioLabel } from "@/utils/aspectRatioUtils";
@@ -37,6 +44,7 @@ import type { VideoPlaybackRef } from "../VideoPlayback";
 import { EditorVideoPreview } from "./EditorVideoPreview";
 
 type Props = {
+	audioCommands: ReturnType<typeof useAudioRegionCommands>;
 	t: ReturnType<typeof useI18n>["t"];
 	videoPath: string | null;
 	previewVersion: number;
@@ -79,6 +87,7 @@ function formatTime(seconds: number) {
 
 export function EditorPreviewPanel(props: Props) {
 	const {
+		audioCommands,
 		t,
 		videoPath,
 		previewVersion,
@@ -112,11 +121,45 @@ export function EditorPreviewPanel(props: Props) {
 		setError,
 	} = props;
 
+	const narration = useRef<NarrationAction>(null);
+	const [phase, setPhase] = useState("idle");
+	const [detaching, setDetaching] = useState(false);
+	const clip = timeline.clipRegions.find(c => c.id === timeline.selectedClipId)
+		?? timeline.clipRegions.find(c => c.id === audio.activeClipIdAtCurrentTime);
+	const latest = useRef({ videoPath, clips: timeline.clipRegions, regions: timeline.audioRegions });
+	latest.current = { videoPath, clips: timeline.clipRegions, regions: timeline.audioRegions };
+	const selectedAudio = timeline.audioRegions.find(r => r.id === timeline.selectedAudioId);
+	const at = Math.round(projection.timelinePlayheadTime * 1000);
+	const insideAudio = !!selectedAudio && at > selectedAudio.startMs && at < selectedAudio.endMs;
+	const toggle = () => narration.current?.toggle();
+	const canRecord = !!videoPath && (phase === "idle" || phase === "recording");
+	const recordLabel = phase === "recording" ? "Stop voice-over" : "Record voice-over";
+	async function detach() {
+		if (!videoPath || !clip || clip.muted || detaching) return;
+		const snapshot = latest.current;
+		setDetaching(true);
+		try {
+			const path = getLocalFilePathFromResource(videoPath) ?? videoPath;
+			const tracks = await window.electronAPI.detachRecordingAudio(path, clip.startMs, clip.endMs, clip.speed);
+			if (latest.current.videoPath !== snapshot.videoPath || latest.current.clips !== snapshot.clips) {
+				toast.info("The video clip changed. Select it again to detach its audio.");
+				return;
+			}
+			let lane = 1 + latest.current.regions.reduce((max, r) => Math.max(max, r.trackIndex ?? 0), -1);
+			const settings = audio.getSourceAudioTrackSettingsForClip(clip.id);
+			for (const track of tracks) {
+				audioCommands.handleAudioAdded({ start: track.startMs, end: track.endMs }, track.path, lane++, settings[track.kind]);
+			}
+			timeline.setClipRegions(items => items.map(c => c.id === clip.id ? { ...c, muted: true, showSourceAudio: false } : c));
+		} catch (error) {
+			toast.error(String(error));
+		} finally { setDetaching(false); }
+	}
 	return (
 		<div className="flex min-h-0 flex-1 flex-col gap-3">
 			<div className="flex min-h-0 flex-1 flex-col">
 				<div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-					<div className="flex flex-shrink-0 items-center justify-center gap-2 py-1.5">
+					<div className="flex flex-shrink-0 flex-wrap items-center justify-center gap-2 py-1.5">
 						<DropdownMenu>
 							<DropdownMenuTrigger asChild>
 								<Button
@@ -161,6 +204,28 @@ export function EditorPreviewPanel(props: Props) {
 								<span className="h-1.5 w-1.5 rounded-full bg-[#2563EB]" />
 							) : null}
 						</Button>
+						{videoPath && (
+							<NarrationControls
+								key={videoPath}
+								actionRef={narration} onPhaseChange={setPhase}
+								position={projection.timelinePlayheadTime}
+								duration={projection.timelineDuration}
+								regions={timeline.audioRegions}
+								selectedId={timeline.selectedAudioId}
+								seek={playback.handleTimelineSeek}
+								play={playback.startPlayback}
+								add={audioCommands.handleAudioAdded}
+								replace={(id, path, endMs) =>
+									timeline.setAudioRegions((items) =>
+										items.map((item) =>
+											item.id === id
+												? { ...item, audioPath: path, endMs, sourceOffsetMs: 0, sourceDurationMs: endMs - item.startMs }
+												: item,
+										),
+									)
+								}
+							/>
+						)}
 					</div>
 					<div
 						className="flex min-h-0 w-full flex-1 items-stretch"
@@ -250,6 +315,19 @@ export function EditorPreviewPanel(props: Props) {
 							>
 								{t("timeline.annotation.label")}
 							</DropdownMenuItem>
+							<DropdownMenuSub>
+								<DropdownMenuSubTrigger>{t("timeline.audio.label")}</DropdownMenuSubTrigger>
+								<DropdownMenuSubContent>
+									<DropdownMenuItem disabled={!canRecord} onSelect={toggle}>{recordLabel}</DropdownMenuItem>
+									{selectedAudio && <>
+										<DropdownMenuItem disabled={!insideAudio} onSelect={() =>
+											audioCommands.handleAudioSpanChange(selectedAudio.id, { start: at, end: selectedAudio.endMs })}>Trim audio start to playhead</DropdownMenuItem>
+										<DropdownMenuItem disabled={!insideAudio} onSelect={() =>
+											audioCommands.handleAudioSpanChange(selectedAudio.id, { start: selectedAudio.startMs, end: at })}>Trim audio end to playhead</DropdownMenuItem>
+									</>}
+									<DropdownMenuItem disabled={!clip || clip.muted || detaching} onSelect={detach}>
+										{detaching ? "Detaching audio..." : "Detach recording audio"}
+									</DropdownMenuItem>
 							<DropdownMenuItem
 								onClick={() => {
 									const nextTrack =
@@ -264,10 +342,16 @@ export function EditorPreviewPanel(props: Props) {
 								}}
 								className="cursor-pointer text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
 							>
-								{t("timeline.audio.label")}
+								Import audio file...
 							</DropdownMenuItem>
+							</DropdownMenuSubContent></DropdownMenuSub>
 						</DropdownMenuContent>
 					</DropdownMenu>
+					<Button variant="ghost" size="sm" disabled={!canRecord} onClick={toggle}
+						className="h-7 gap-1 rounded-full px-2 text-xs" aria-pressed={phase === "recording"}>
+						<span aria-hidden="true" className={phase === "recording" ? "size-2 bg-red-500" : "size-2 rounded-full bg-red-500"} />
+						{recordLabel}
+					</Button>
 					<div className="mx-1 h-4 w-px bg-foreground/10" />
 					<Button
 						onClick={() => timelineRef.current?.addZoom()}
@@ -292,13 +376,14 @@ export function EditorPreviewPanel(props: Props) {
 						variant="ghost"
 						size="icon"
 						className="h-7 w-7 rounded-full text-muted-foreground transition-all hover:bg-foreground/10 hover:text-foreground"
-						title={t("editor.toolbar.splitClip")}
+						title={timeline.selectedAudioId ? "Split selected audio at playhead (C)" : t("editor.toolbar.splitClip")}
 					>
 						<Scissors className="h-4 w-4" />
 					</Button>
+					{videoPath && <JoinClips key={videoPath} timeline={timeline} settingsForClip={audio.getSourceAudioTrackSettingsForClip} />}
 				</div>
 
-				<div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+				<div className="z-10 flex shrink-0 items-center justify-center">
 					<div className="pointer-events-auto flex items-center gap-1.5">
 						<span className="mr-1 text-[10px] font-medium tabular-nums text-muted-foreground">
 							{formatTime(projection.timelinePlayheadTime)}
@@ -340,7 +425,7 @@ export function EditorPreviewPanel(props: Props) {
 					</div>
 				</div>
 
-				<div className="z-10 ml-auto flex items-center gap-2">
+				<div className="z-10 ml-auto flex flex-1 items-center justify-end gap-2">
 					<div className="flex items-center gap-1.5">
 						<button
 							type="button"

@@ -1,4 +1,5 @@
 #include "wasapi_loopback.h"
+#include "audio_timing.h"
 #include <functiondiscoverykeys_devpkey.h>
 #include <iostream>
 #include <cstring>
@@ -61,7 +62,7 @@ static const IID IID_IMMDeviceEnumerator_ = __uuidof(IMMDeviceEnumerator);
 static const IID IID_IAudioClient_ = __uuidof(IAudioClient);
 static const IID IID_IAudioCaptureClient_ = __uuidof(IAudioCaptureClient);
 
-WasapiCapture::WasapiCapture() {}
+WasapiCapture::WasapiCapture(const RecordingClock& clock) : clock_(clock) {}
 
 WasapiCapture::~WasapiCapture() {
     stop();
@@ -190,10 +191,9 @@ bool WasapiCapture::start() {
     totalDataBytes_ = 0;
     framesWritten_ = 0;
     firstPacketQpcHns_ = -1;
-    pauseStartQpcHns_ = 0;
-    accumulatedPausedQpcHns_ = 0;
     dataDiscontinuityCount_ = 0;
     timestampErrorCount_ = 0;
+    loopbackTimestampFallbackCount_ = 0;
     gapFillCount_ = 0;
     insertedSilenceFrames_ = 0;
     compactedDiscontinuityCount_ = 0;
@@ -203,6 +203,7 @@ bool WasapiCapture::start() {
     fadeInFramesRemaining_ = 0;
     writeWavHeader(outputFile_, 0);
 
+    const int64_t startTime = queryPerformanceCounterHns();
     HRESULT hr = audioClient_->Start();
     if (FAILED(hr)) {
         CloseHandle(outputFile_);
@@ -210,6 +211,7 @@ bool WasapiCapture::start() {
         return false;
     }
 
+    streamStartQpcHns_ = startTime;
     capturing_ = true;
     paused_ = false;
     thread_ = std::thread(&WasapiCapture::captureThread, this);
@@ -218,21 +220,14 @@ bool WasapiCapture::start() {
 
 bool WasapiCapture::pause() {
     if (!capturing_ || paused_) return true;
-    pauseStartQpcHns_ = queryPerformanceCounterHns();
     paused_ = true;
     return audioClient_ ? SUCCEEDED(audioClient_->Stop()) : false;
 }
 
 bool WasapiCapture::resume() {
     if (!capturing_ || !paused_) return true;
-    const int64_t resumedQpcHns = queryPerformanceCounterHns();
-    const int64_t pauseStartQpcHns = pauseStartQpcHns_.load();
     HRESULT hr = audioClient_ ? audioClient_->Start() : E_FAIL;
     if (FAILED(hr)) return false;
-    if (pauseStartQpcHns > 0 && resumedQpcHns > pauseStartQpcHns) {
-        accumulatedPausedQpcHns_.fetch_add(resumedQpcHns - pauseStartQpcHns);
-    }
-    pauseStartQpcHns_ = 0;
     paused_ = false;
     fadeInFramesRemaining_ = boundaryFadeInFrameCount();
     return true;
@@ -255,8 +250,6 @@ void WasapiCapture::stop() {
     }
 
     paused_ = false;
-    pauseStartQpcHns_ = 0;
-    accumulatedPausedQpcHns_ = 0;
     fadeInFramesRemaining_ = 0;
 }
 
@@ -434,27 +427,32 @@ void WasapiCapture::captureThread() {
             if ((flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) != 0) {
                 timestampErrorCount_.fetch_add(1);
             }
-            const bool hasReliableTimestamp =
-                numFrames > 0 &&
-                qpcPosition > 0 &&
-                (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) == 0;
-            if (hasReliableTimestamp) {
+            const int64_t reportedTimestampHns = (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR) == 0
+                ? static_cast<int64_t>(qpcPosition)
+                : 0;
+            const int64_t readTimestampHns = queryPerformanceCounterHns();
+            int64_t packetTimestampHns = reportedTimestampHns;
+            if ((streamFlags_ & AUDCLNT_STREAMFLAGS_LOOPBACK) != 0 && numFrames > 0) {
+                const int64_t packetDurationHns =
+                    (static_cast<int64_t>(numFrames) * kHundredNanosecondsPerSecond) /
+                    mixFormat_->nSamplesPerSec;
+                packetTimestampHns = resolveLoopbackPacketTimestampHns(
+                    reportedTimestampHns, readTimestampHns, packetDurationHns, streamStartQpcHns_);
+                if (packetTimestampHns != reportedTimestampHns) {
+                    loopbackTimestampFallbackCount_.fetch_add(1);
+                }
+            }
+            if (numFrames > 0 && packetTimestampHns > 0) {
                 int64_t expected = -1;
-                firstPacketQpcHns_.compare_exchange_strong(
-                    expected,
-                    static_cast<int64_t>(qpcPosition));
+                firstPacketQpcHns_.compare_exchange_strong(expected, packetTimestampHns);
 
                 const int64_t firstPacketQpcHns = firstPacketQpcHns_.load();
                 if (
                     firstPacketQpcHns >= 0 &&
-                    static_cast<int64_t>(qpcPosition) > firstPacketQpcHns
+                    packetTimestampHns > firstPacketQpcHns
                 ) {
-                    const int64_t elapsedHns =
-                        static_cast<int64_t>(qpcPosition) - firstPacketQpcHns;
-                    const int64_t adjustedElapsedHns =
-                        elapsedHns > accumulatedPausedQpcHns_.load()
-                            ? elapsedHns - accumulatedPausedQpcHns_.load()
-                            : 0;
+                    const int64_t adjustedElapsedHns = clock_.recordingTime(packetTimestampHns) -
+                        clock_.recordingTime(firstPacketQpcHns);
                     const uint64_t expectedStartFrame =
                         (static_cast<uint64_t>(adjustedElapsedHns) * mixFormat_->nSamplesPerSec +
                          kHundredNanosecondsPerSecond / 2) /

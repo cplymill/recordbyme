@@ -540,6 +540,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 	stopFfmpegRecording: () => {
 		return ipcRenderer.invoke("stop-ffmpeg-recording");
 	},
+	joinAudio: (parts: Parameters<Window["electronAPI"]["joinAudio"]>[0]) => ipcRenderer.invoke("join-audio", parts),
+	detachRecordingAudio: (path: string, start: number, end: number, speed: number) => ipcRenderer.invoke("detach-recording-audio", path, start, end, speed),
+	saveNarration: (bytes: ArrayBuffer) => ipcRenderer.invoke("save-narration", bytes),
 	storeRecordedVideo: (videoData: ArrayBuffer, fileName: string) => {
 		return ipcRenderer.invoke("store-recorded-video", videoData, fileName);
 	},

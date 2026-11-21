@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { execFile, spawn } from "node:child_process";
 import fs from "node:fs/promises";
@@ -44,13 +45,16 @@ import {
 	getSystemCursorHelperSourcePath,
 	getWindowsCaptureExePath,
 } from "../paths/binaries";
-import { rememberApprovedLocalReadPath } from "../project/manager";
+import { resolveSourceTrackRoutingPolicy } from "../../../src/lib/exporter/sourceTrackRoutingPolicy";
+import { getSourceTrackIdFromPath } from "../../../src/lib/exporter/audioRoutingEngine";
+import { estimateCompanionAudioStartDelaySeconds } from "../../../src/lib/mediaTiming";
+import { resolveApprovedLocalMediaPath, rememberApprovedLocalReadPath } from "../project/manager";
 import {
 	getBrowserMicSidecarFilters,
 	shouldKeepRecordingAudioSidecars,
 } from "../recording/audioFilters";
 import {
-	getCompanionAudioFallbackInfo,
+	getCompanionAudioFallbackInfo, hasEmbeddedAudioStream, probeMediaDurationSeconds,
 	getFileSizeIfPresent,
 	type MicrophoneChunkTimingEvent,
 	type MicrophonePauseInterval,
@@ -1796,6 +1800,100 @@ export function registerRecordingHandlers(
 			}
 		},
 	);
+
+	ipcMain.handle("join-audio", async (_, parts: Parameters<Window["electronAPI"]["joinAudio"]>[0]) => {
+		if (!Array.isArray(parts) || parts.length !== 2) throw new Error("Select two audio clips.");
+		const args = ["-nostdin", "-loglevel", "error"];
+		const filters = [];
+		for (const [index, part] of parts.entries()) {
+			if (!part || typeof part.path !== "string" || !Number.isSafeInteger(part.offset) || part.offset < 0 ||
+				!Number.isSafeInteger(part.duration) || part.duration <= 0 || !Number.isFinite(part.gain) || part.gain < 0 || part.gain > 1)
+				throw new Error("Invalid audio clip.");
+			const file = await resolveApprovedLocalMediaPath(part.path);
+			if (!file) throw new Error("Reopen the project to access its audio files.");
+			const seconds = part.duration / 1000;
+			args.push("-ss", String(part.offset / 1000), "-t", String(seconds), "-i", file);
+			filters.push(`[${index}:a:0]aresample=48000,aformat=channel_layouts=stereo,volume=${part.gain},apad,atrim=duration=${seconds},asetpts=PTS-STARTPTS[a${index}]`);
+		}
+		const directory = path.join(app.getPath("userData"), "recording-audio");
+		await fs.mkdir(directory, { recursive: true });
+		const narration = parts.every(part => /^Narration-[a-f0-9-]+\.(webm|wav)$/i.test(path.basename(part.path)));
+		const output = path.join(directory, (narration ? "Narration-" : "Joined-") + randomUUID() + ".wav");
+		try {
+			await execFileAsync(getFfmpegBinaryPath(), [...args, "-filter_complex", [...filters, "[a0][a1]concat=n=2:v=0:a=1[out]"].join(";"),
+				"-map", "[out]", "-c:a", "pcm_s24le", output], { windowsHide: true });
+			await rememberApprovedLocalReadPath(output);
+			return output;
+		} catch (error) {
+			await fs.rm(output, {force: true}).catch(() => undefined);
+			throw error;
+		}
+	});
+
+	ipcMain.handle("detach-recording-audio", async (_, source: string, start: number, end: number, speed: number) => {
+		if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end <= start) {
+			throw new Error("Select a video clip to detach its audio.");
+		}
+		if (speed !== 1) throw new Error("Set the clip to normal speed before detaching its audio.");
+		const video = await resolveApprovedLocalMediaPath(source);
+		if (!video) throw new Error("Reopen the video to access its recording audio.");
+		const { paths, startDelayMsByPath } = await getCompanionAudioFallbackInfo(video);
+		const routing = resolveSourceTrackRoutingPolicy(video, paths);
+		const inputs = [...routing.playbackPaths];
+		if (routing.includeEmbeddedInExport && await hasEmbeddedAudioStream(video)) inputs.push(video);
+		const videoDuration = await probeMediaDurationSeconds(video);
+		const directory = path.join(app.getPath("userData"), "recording-audio");
+		await fs.mkdir(directory, { recursive: true });
+		const created: string[] = [];
+		const tracks = [];
+		try {
+			for (const input of inputs) {
+				const embedded = input === video;
+				const kind = embedded ? "mixed" : getSourceTrackIdFromPath(input);
+				const duration = embedded ? videoDuration : await probeMediaDurationSeconds(input);
+				const rawDelay = estimateCompanionAudioStartDelaySeconds(videoDuration, duration, startDelayMsByPath[input]);
+				const delay = embedded || kind === "mic" || rawDelay >= videoDuration - 0.01 || rawDelay > Math.max(5, videoDuration * 0.9)
+					? 0 : Math.round(1000 * rawDelay);
+				const startMs = Math.max(start, delay);
+				const endMs = Math.min(end, delay + Math.round(duration * 1000));
+				if (endMs <= startMs) continue;
+				let output = input;
+				if (embedded || startMs > delay) {
+					const label = embedded ? "Recording" : kind === "mic" ? "Microphone" : "System";
+					output = path.join(directory, label + "-" + randomUUID() + ".wav");
+					created.push(output);
+					await execFileAsync(getFfmpegBinaryPath(), ["-nostdin", "-loglevel", "error", "-ss",
+						String((startMs - delay) / 1000), "-i", input, "-map", "0:a:0", "-t",
+						String((endMs - startMs) / 1000), "-c:a", "pcm_s16le", output], { windowsHide: true });
+				}
+				await rememberApprovedLocalReadPath(output);
+				tracks.push({ path: output, kind, startMs, endMs });
+			}
+			if (!tracks.length) throw new Error("This clip contains no recording audio.");
+			return tracks;
+		} catch (error) {
+			await Promise.all(created.map(file => fs.rm(file, { force: true }).catch(() => undefined)));
+			throw error;
+		}
+	});
+
+	ipcMain.handle("save-narration", async (_, bytes: ArrayBuffer) => {
+		if (!(bytes instanceof ArrayBuffer) || bytes.byteLength < 4 || bytes.byteLength > 128 * 1024 * 1024) {
+			throw new Error("Invalid narration recording");
+		}
+		const data = Buffer.from(bytes);
+		if (data.readUInt32BE(0) !== 0x1a45dfa3) throw new Error("Expected a WebM narration take");
+		const directory = path.join(app.getPath("userData"), "narration");
+		await fs.mkdir(directory, { recursive: true });
+		const filePath = path.join(directory, `Narration-${randomUUID()}.webm`);
+		try {
+			await fs.writeFile(filePath, data, { flag: "wx" });
+		} catch (error) {
+			if ((error as NodeJS.ErrnoException).code !== "EEXIST") await fs.rm(filePath, {force: true}).catch(() => {});
+			throw error;
+		}
+		return filePath;
+	});
 
 	ipcMain.handle("store-recorded-video", async (_, videoData: ArrayBuffer, fileName: unknown) => {
 		try {

@@ -8,9 +8,11 @@
 #include <atomic>
 #include <vector>
 
+class RecordingClock;
+
 class WasapiCapture {
 public:
-    WasapiCapture();
+    explicit WasapiCapture(const RecordingClock& clock);
     ~WasapiCapture();
 
     bool initializeLoopback(const std::string& outputPath);
@@ -26,6 +28,7 @@ public:
     uint16_t channelCount() const;
     uint32_t dataDiscontinuityCount() const { return dataDiscontinuityCount_.load(); }
     uint32_t timestampErrorCount() const { return timestampErrorCount_.load(); }
+    uint32_t loopbackTimestampFallbackCount() const { return loopbackTimestampFallbackCount_.load(); }
     uint32_t gapFillCount() const { return gapFillCount_.load(); }
     uint64_t insertedSilenceFrames() const { return insertedSilenceFrames_.load(); }
     uint32_t compactedDiscontinuityCount() const { return compactedDiscontinuityCount_.load(); }
@@ -34,6 +37,7 @@ public:
     uint64_t compactedSilentDiscontinuityFrames() const { return compactedSilentDiscontinuityFrames_.load(); }
 
 private:
+    const RecordingClock& clock_;
     bool initializeCommon();
     void captureThread();
     bool writeWavHeader(HANDLE file, DWORD dataSize);
@@ -59,10 +63,10 @@ private:
 
     UINT32 bufferFrameCount_ = 0;
     std::atomic<int64_t> firstPacketQpcHns_{-1};
-    std::atomic<int64_t> pauseStartQpcHns_{0};
-    std::atomic<int64_t> accumulatedPausedQpcHns_{0};
+    int64_t streamStartQpcHns_ = 0;
     std::atomic<uint32_t> dataDiscontinuityCount_{0};
     std::atomic<uint32_t> timestampErrorCount_{0};
+    std::atomic<uint32_t> loopbackTimestampFallbackCount_{0};
     std::atomic<uint32_t> gapFillCount_{0};
     std::atomic<uint64_t> insertedSilenceFrames_{0};
     std::atomic<uint32_t> compactedDiscontinuityCount_{0};

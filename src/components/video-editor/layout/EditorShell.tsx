@@ -188,6 +188,7 @@ export function EditorShell(props: Props) {
 						settingsPanelProps={settingsPanelProps}
 					/>
 					<EditorPreviewPanel
+						audioCommands={audioCommands}
 						t={t}
 						videoPath={project.videoPath}
 						previewVersion={ui.previewVersion}

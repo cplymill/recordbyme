@@ -534,6 +534,8 @@ export type {
 } from "@/components/video-editor/audio/audioTypes";
 
 export interface AudioRegion {
+	sourceOffsetMs?: number;
+	sourceDurationMs?: number;
 	id: string;
 	startMs: number;
 	endMs: number;

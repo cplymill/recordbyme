@@ -899,6 +899,7 @@ app.whenReady().then(async () => {
 				{
 					permission,
 					isTrustedCaptureWindow: isHudWebContents(webContents),
+					editorMicrophone: webContents === mainWindow?.webContents && details.mediaType === "audio" && !isHudWebContents(webContents),
 					isMainFrame: details.isMainFrame,
 					currentDocumentUrl: webContents?.getURL() ?? "",
 					// Electron 39 may supply the last committed document URL, including its
@@ -921,6 +922,7 @@ app.whenReady().then(async () => {
 					{
 						permission,
 						isTrustedCaptureWindow: isHudWebContents(webContents),
+						editorMicrophone: !isHudWebContents(webContents) && webContents === mainWindow?.webContents && "mediaTypes" in details && details.mediaTypes?.length === 1 && details.mediaTypes[0] === "audio",
 						isMainFrame: details.isMainFrame,
 						currentDocumentUrl: webContents.getURL(),
 						requestingUrl: details.requestingUrl,

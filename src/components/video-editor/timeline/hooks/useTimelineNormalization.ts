@@ -76,7 +76,7 @@ export function useTimelineNormalization({
 				startMs: region.startMs,
 				endMs: region.endMs,
 				totalMs,
-				minDurationMs: safeMinDurationMs,
+				minDurationMs: 1,
 			});
 
 			if (normalized.start !== region.startMs || normalized.end !== region.endMs) {

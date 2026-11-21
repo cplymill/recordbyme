@@ -1,3 +1,4 @@
+import { isNarration } from "../../audio/narrationRegion";
 import { formatClipSpeedLabel } from "../../clipSpeedChange";
 import type {
 	AnnotationRegion,
@@ -29,6 +30,7 @@ export function getAnnotationLabel(region: AnnotationRegion): string {
 }
 
 export function getAudioLabel(region: AudioRegion): string {
+	if (isNarration(region)) return "Narration";
 	return (
 		region.audioPath
 			.split(/[\\/]/)
@@ -93,6 +95,7 @@ export function buildTimelineItems(params: {
 		span: { start: region.startMs, end: region.endMs },
 		label: getAudioLabel(region),
 		audioPath: region.audioPath,
+		sourceSpan: { start: region.sourceOffsetMs ?? 0, end: (region.sourceOffsetMs ?? 0) + region.endMs - region.startMs },
 		audioGain: region.volume,
 		audioNormalize: Boolean(region.normalize),
 		variant: "audio",

@@ -79,7 +79,7 @@ export function EditorTimelinePanel(props: Props) {
 				onSelectZoom={zoomCommands.handleSelectZoom}
 				trimRegions={timeline.trimRegions}
 				clipRegions={timeline.clipRegions}
-				onClipSplit={clipCommands.handleClipSplit}
+				onClipSplit={timeline.selectedAudioId ? (ms) => audioCommands.handleAudioSplit(ms, timeline.audioRegions) : clipCommands.handleClipSplit}
 				onClipSpanChange={clipCommands.handleClipSpanChange}
 				selectedClipId={timeline.selectedClipId}
 				onSelectClip={clipCommands.handleSelectClip}

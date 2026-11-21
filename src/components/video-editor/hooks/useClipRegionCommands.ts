@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { planClipSpeedChange } from "../clipSpeedChange";
 import type {
 	AnnotationRegion,
-	AudioRegion,
 	ClipRegion,
 	EditorEffectSection,
 	SpeedRegion,
@@ -24,7 +23,6 @@ interface UseClipRegionCommandsParams {
 	setZoomRegions: Dispatch<SetStateAction<ZoomRegion[]>>;
 	setAnnotationRegions: Dispatch<SetStateAction<AnnotationRegion[]>>;
 	setSpeedRegions: Dispatch<SetStateAction<SpeedRegion[]>>;
-	setAudioRegions: Dispatch<SetStateAction<AudioRegion[]>>;
 	selectedClipId: string | null;
 	setSelectedClipId: Dispatch<SetStateAction<string | null>>;
 	setSelectedZoomId: Dispatch<SetStateAction<string | null>>;
@@ -43,7 +41,6 @@ export function useClipRegionCommands({
 	setZoomRegions,
 	setAnnotationRegions,
 	setSpeedRegions,
-	setAudioRegions,
 	selectedClipId,
 	setSelectedClipId,
 	setSelectedZoomId,
@@ -101,7 +98,8 @@ export function useClipRegionCommands({
 			const oldClip = clipRegions.find((clip) => clip.id === id);
 			const newStart = Math.round(span.start);
 			const newEnd = Math.round(span.end);
-			const removedSegments = oldClip
+			const isMove = oldClip && newStart - oldClip.startMs === newEnd - oldClip.endMs;
+			const removedSegments = oldClip && !isMove
 				? [
 						...(newStart > oldClip.startMs
 							? [{ startMs: oldClip.startMs, endMs: newStart }]
@@ -145,7 +143,6 @@ export function useClipRegionCommands({
 				setZoomRegions((current) => removeTrimmedRegions(current));
 				setAnnotationRegions((current) => removeTrimmedRegions(current));
 				setSpeedRegions((current) => removeTrimmedRegions(current));
-				setAudioRegions((current) => removeTrimmedRegions(current));
 			}
 
 			setClipRegions((current) =>
@@ -157,7 +154,6 @@ export function useClipRegionCommands({
 		[
 			clipRegions,
 			setAnnotationRegions,
-			setAudioRegions,
 			setClipRegions,
 			setSpeedRegions,
 			setZoomRegions,
@@ -220,7 +216,6 @@ export function useClipRegionCommands({
 				setZoomRegions((current) => current.filter(outsideDeletedClip));
 				setAnnotationRegions((current) => current.filter(outsideDeletedClip));
 				setSpeedRegions((current) => current.filter(outsideDeletedClip));
-				setAudioRegions((current) => current.filter(outsideDeletedClip));
 			}
 			if (selectedClipId === id) setSelectedClipId(null);
 		},
@@ -228,7 +223,6 @@ export function useClipRegionCommands({
 			clipRegions,
 			selectedClipId,
 			setAnnotationRegions,
-			setAudioRegions,
 			setClipRegions,
 			setSelectedClipId,
 			setSpeedRegions,

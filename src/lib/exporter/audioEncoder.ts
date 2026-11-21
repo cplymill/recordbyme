@@ -1019,9 +1019,9 @@ export class AudioProcessor {
 		if (localEndSec <= 0 || localStartSec >= chunkDurationSec) return;
 
 		// Clip to chunk bounds
-		let bufferOffsetSec = 0;
+		let bufferOffsetSec = (region.sourceOffsetMs ?? 0) / 1000;
 		if (localStartSec < 0) {
-			bufferOffsetSec = -localStartSec;
+			bufferOffsetSec -= localStartSec;
 			localStartSec = 0;
 		}
 		if (localEndSec > chunkDurationSec) {

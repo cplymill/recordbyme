@@ -4,6 +4,7 @@ const FILE_SECURITY_ORIGINS = new Set(["null", "file://", "file:///"]);
 
 export interface MediaPermissionPolicyRequest {
 	permission: string;
+	editorMicrophone?: boolean;
 	isTrustedCaptureWindow: boolean;
 	isMainFrame: boolean;
 	currentDocumentUrl: string;
@@ -27,12 +28,12 @@ function parseUrl(value: string): URL | null {
 	}
 }
 
-function hasExactCaptureWindowQuery(url: URL): boolean {
+function hasExactCaptureWindowQuery(url: URL, windowType: string): boolean {
 	const entries = [...url.searchParams.entries()];
 	return (
 		entries.length === 1 &&
 		entries[0]?.[0] === "windowType" &&
-		entries[0][1] === CAPTURE_WINDOW_TYPE
+		entries[0][1] === windowType
 	);
 }
 
@@ -58,6 +59,7 @@ function hasSameBaseLocation(candidate: URL, trustedBase: URL): boolean {
 export function isTrustedCaptureDocumentUrl(
 	candidateUrl: string,
 	trustedDocumentBaseUrls: readonly string[],
+	windowType = CAPTURE_WINDOW_TYPE,
 ): boolean {
 	const candidate = parseUrl(candidateUrl);
 	if (
@@ -65,7 +67,7 @@ export function isTrustedCaptureDocumentUrl(
 		!TRUSTED_RENDERER_PROTOCOLS.has(candidate.protocol) ||
 		candidate.username !== "" ||
 		candidate.password !== "" ||
-		!hasExactCaptureWindowQuery(candidate)
+		!hasExactCaptureWindowQuery(candidate, windowType)
 	) {
 		return false;
 	}
@@ -121,15 +123,15 @@ export function shouldGrantMediaPermission(
 ): boolean {
 	if (
 		request.permission !== "media" ||
-		!request.isTrustedCaptureWindow ||
+		(!request.isTrustedCaptureWindow && !request.editorMicrophone) ||
 		!request.isMainFrame ||
-		!isTrustedCaptureDocumentUrl(request.currentDocumentUrl, trustedDocumentBaseUrls)
+		!isTrustedCaptureDocumentUrl(request.currentDocumentUrl, trustedDocumentBaseUrls, request.editorMicrophone ? "editor" : CAPTURE_WINDOW_TYPE)
 	) {
 		return false;
 	}
 
 	if (
-		!isTrustedCaptureDocumentUrl(request.requestingUrl, trustedDocumentBaseUrls) ||
+		!isTrustedCaptureDocumentUrl(request.requestingUrl, trustedDocumentBaseUrls, request.editorMicrophone ? "editor" : CAPTURE_WINDOW_TYPE) ||
 		!isSameDocument(request.currentDocumentUrl, request.requestingUrl)
 	) {
 		return false;
