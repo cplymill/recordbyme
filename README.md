@@ -1,3 +1,13 @@
+# RecordByMe
+
+RecordByMe is an independent fork of [Recordly](https://github.com/webadderallorg/Recordly), created by webadderall and developed with the Recordly contributors. This fork adds Windows audio synchronization fixes, voice-over recording, and independent audio track editing.
+
+RecordByMe uses the same GNU Affero General Public License v3. Recordly began as a fork of OpenScreen by Siddharth Vaddem. The original copyright and MIT notice for the OpenScreen code are included in [LICENSE.md](LICENSE.md).
+
+## Original Recordly documentation
+
+The following documentation, acknowledgements, and release links belong to the upstream Recordly project.
+
 Language: EN | [简中](README.zh-CN.md)
 
 <p align="center">

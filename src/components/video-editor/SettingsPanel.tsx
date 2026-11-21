@@ -1,3 +1,4 @@
+import projectLicense from "../../../LICENSE.md?raw";
 import {
 	CursorClick,
 	Palette,
@@ -2665,6 +2666,18 @@ export function SettingsPanel({
 						triggerLabel={t("editor.keyboardShortcuts.customize")}
 						triggerClassName="h-10 w-full justify-start rounded-xl border border-foreground/10 bg-foreground/5 px-3 text-sm text-foreground hover:bg-foreground/10 hover:text-foreground"
 					/>
+				</section>
+
+				<section className="flex flex-col gap-2">
+					<SectionLabel>About RecordByMe</SectionLabel>
+					<p className="text-xs leading-relaxed text-muted-foreground">
+						RecordByMe is an independent fork of Recordly by webadderall and the Recordly contributors.
+						Recordly began as a fork of OpenScreen by Siddharth Vaddem.
+					</p>
+					<details className="text-xs text-muted-foreground">
+						<summary className="cursor-pointer">License and copyright notices (AGPLv3)</summary>
+						<pre tabIndex={0} className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap break-words font-sans">{projectLicense}</pre>
+					</details>
 				</section>
 
 				{showDevMotionControls ? (

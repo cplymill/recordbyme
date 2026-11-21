@@ -1,3 +1,11 @@
+# RecordByMe
+
+RecordByMe 是 [Recordly](https://github.com/webadderallorg/Recordly) 的独立分支。感谢 Recordly 原作者 webadderall 和所有贡献者。本分支沿用 GNU AGPLv3 许可证。Recordly 源自 Siddharth Vaddem 的 OpenScreen，原始版权声明和 MIT 许可见 [LICENSE.md](LICENSE.md)。
+
+## Recordly 上游文档
+
+以下文档、致谢与发行链接来自原 Recordly 项目。
+
 语言: [EN](README.md) | 简中
 
 <p align="center">
