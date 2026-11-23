@@ -16,8 +16,4 @@ I use OpenAI Codex and other AI tools to help develop, debug, and test Record By
 
 Install dependencies with `npm ci`, run the editor with `npm run dev`, and build the Windows installer with `npm run build:win`.
 
-## Sync with GitHub
-
-After committing your changes, double-click **Sync Record By Me.cmd** on Windows or run `npm run sync`. This pulls compatible changes from your tracked branch on `origin` and pushes your local commits. If both sides have new commits, sync stops so you can review and merge them.
-
 [Original Recordly documentation and contributor acknowledgements](https://github.com/webadderallorg/Recordly/tree/v1.4.0)
