@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { AudioProcessor, softLimitOfflineMixPeaksInPlace } from "./audioEncoder";
+import { AudioProcessor, resolveAudioTimestampOffsetUs, softLimitOfflineMixPeaksInPlace } from "./audioEncoder";
 
 type OfflineRenderTestHarness = AudioProcessor & {
 	decodeAudioFromUrl(url: string): Promise<AudioBuffer | null>;
@@ -248,5 +248,23 @@ describe("AudioProcessor offline render preparation", () => {
 				globalThis as unknown as { OfflineAudioContext: typeof OfflineAudioContext }
 			).OfflineAudioContext = originalOfflineAudioContext;
 		}
+	});
+});
+
+describe("resolveAudioTimestampOffsetUs", () => {
+	it("retains negative timestamps so priming offset shifts to zero", () => {
+		expect(resolveAudioTimestampOffsetUs(-21_333)).toBe(-21_333);
+	});
+
+	it("normalizes small codec priming offsets under 45ms", () => {
+		expect(resolveAudioTimestampOffsetUs(0)).toBe(0);
+		expect(resolveAudioTimestampOffsetUs(21_333)).toBe(21_333);
+		expect(resolveAudioTimestampOffsetUs(45_000)).toBe(45_000);
+	});
+
+	it("does not offset stream starts exceeding codec priming delay", () => {
+		expect(resolveAudioTimestampOffsetUs(45_001)).toBe(0);
+		expect(resolveAudioTimestampOffsetUs(500_000)).toBe(0);
+		expect(resolveAudioTimestampOffsetUs(2_000_000)).toBe(0);
 	});
 });

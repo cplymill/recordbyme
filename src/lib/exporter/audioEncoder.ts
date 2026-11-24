@@ -15,6 +15,12 @@ import { resolveMediaElementSource } from "./localMediaSource";
 import type { VideoMuxer } from "./muxer";
 import { resolveSourceTrackRoutingPolicy } from "./sourceTrackRoutingPolicy";
 
+const MAX_CODEC_PRIMING_OFFSET_US = 45_000;
+
+export function resolveAudioTimestampOffsetUs(firstTimestampUs: number): number {
+	return firstTimestampUs <= MAX_CODEC_PRIMING_OFFSET_US ? firstTimestampUs : 0;
+}
+
 const AUDIO_BITRATE = 128_000;
 const DECODE_BACKPRESSURE_LIMIT = 20;
 const ENCODE_BACKPRESSURE_LIMIT = 20;
@@ -189,7 +195,7 @@ export class AudioProcessor {
 				if (done || !chunk) break;
 
 				if (passthroughTimestampOffsetUs === null) {
-					passthroughTimestampOffsetUs = chunk.timestamp;
+					passthroughTimestampOffsetUs = resolveAudioTimestampOffsetUs(chunk.timestamp);
 				}
 
 				const normalizedTimestamp = Math.max(
@@ -444,7 +450,7 @@ export class AudioProcessor {
 			{
 				observeChunkTimestampUs: (timestampUs) => {
 					if (sourceTimestampOffsetUs === null) {
-						sourceTimestampOffsetUs = timestampUs;
+						sourceTimestampOffsetUs = resolveAudioTimestampOffsetUs(timestampUs);
 					}
 				},
 				shouldSkipChunk: (timestampMs) => this.isInTrimRegion(timestampMs, sortedTrims),
@@ -755,16 +761,15 @@ export class AudioProcessor {
 			const buffer = await this.decodeAudioFromUrl(audioPath);
 			if (!buffer) continue;
 
+			const trackId = getSourceTrackIdFromPath(audioPath);
 			companionEntries.push({
 				buffer,
-				gain: resolveSourceTrackGain(
-					sourceAudioTrackSettings,
-					getSourceTrackIdFromPath(audioPath),
-				),
+				gain: resolveSourceTrackGain(sourceAudioTrackSettings, trackId),
 				startDelaySec: estimateCompanionAudioStartDelaySeconds(
 					refDuration,
 					buffer.duration,
 					sourceAudioFallbackStartDelayMsByPath?.[audioPath],
+					trackId,
 				),
 			});
 		}

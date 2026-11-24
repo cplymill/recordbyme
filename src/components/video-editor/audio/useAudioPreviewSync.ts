@@ -1,7 +1,7 @@
 import { useNarrationSpeech } from "./useNarrationSpeech";
 import { duckGain } from "./ducking";
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { buildResolvedAudioPlan } from "@/lib/exporter/audioRoutingEngine";
+import { buildResolvedAudioPlan, getSourceTrackIdFromPath } from "@/lib/exporter/audioRoutingEngine";
 import { resolveMediaElementSource } from "@/lib/exporter/localMediaSource";
 import {
 	clampMediaTimeToDuration,
@@ -418,6 +418,7 @@ export function useAudioPreviewSync({
 				duration,
 				audioDuration,
 				sourceAudioFallbackStartDelayMsByPath[sourceAudioPath],
+				getSourceTrackIdFromPath(sourceAudioPath),
 			);
 			const maxPreviewStartDelaySeconds = isMicCompanionTrack ? 2 : 5;
 			const startDelaySeconds = isMicCompanionTrack

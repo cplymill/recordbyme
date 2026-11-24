@@ -1851,7 +1851,7 @@ export function registerRecordingHandlers(
 				const embedded = input === video;
 				const kind = embedded ? "mixed" : getSourceTrackIdFromPath(input);
 				const duration = embedded ? videoDuration : await probeMediaDurationSeconds(input);
-				const rawDelay = estimateCompanionAudioStartDelaySeconds(videoDuration, duration, startDelayMsByPath[input]);
+				const rawDelay = estimateCompanionAudioStartDelaySeconds(videoDuration, duration, startDelayMsByPath[input], kind);
 				const delay = embedded || kind === "mic" || rawDelay >= videoDuration - 0.01 || rawDelay > Math.max(5, videoDuration * 0.9)
 					? 0 : Math.round(1000 * rawDelay);
 				const startMs = Math.max(start, delay);
