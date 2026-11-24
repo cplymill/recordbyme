@@ -1,4 +1,7 @@
-import type { RefObject } from "react";
+import { type RefObject, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { CaretDown, CaretUp } from "@phosphor-icons/react";
+import { useScopedT } from "@/contexts/I18nContext";
 import type { useVideoEditorAudio } from "../audio/useVideoEditorAudio";
 import type { useAnnotationRegionCommands } from "../hooks/useAnnotationRegionCommands";
 import type { useAudioRegionCommands } from "../hooks/useAudioRegionCommands";
@@ -33,6 +36,12 @@ type Props = {
 };
 
 export function EditorTimelinePanel(props: Props) {
+	const t = useScopedT("editor");
+	const [expanded, setExpanded] = useState(false);
+	const toggleLabel = expanded
+		? t("timeline.collapse", "Collapse Timeline")
+		: t("timeline.expand", "Expand Timeline");
+	const ToggleIcon = expanded ? CaretDown : CaretUp;
 	const {
 		timelineRef,
 		timeline,
@@ -56,7 +65,19 @@ export function EditorTimelinePanel(props: Props) {
 	} = props;
 
 	return (
-		<div className="flex flex-shrink-0 flex-col" style={{ height: "15%", minHeight: 160 }}>
+		<div data-timeline-panel className="relative flex flex-shrink-0 flex-col" style={{ height: expanded ? "48%" : "15%", minHeight: 160 }}>
+			<Button
+				type="button"
+				variant="ghost"
+				size="icon"
+				className="absolute top-0 left-1/2 z-40 h-5 w-10 -translate-x-1/2 -translate-y-1/2 rounded-md border border-separator bg-editor-bg text-muted-foreground"
+				title={toggleLabel}
+				aria-label={toggleLabel}
+				aria-expanded={expanded}
+				onClick={() => setExpanded((value) => !value)}
+			>
+				<ToggleIcon className="size-3" aria-hidden="true" />
+			</Button>
 			<TimelineEditor
 				ref={timelineRef}
 				videoDuration={projection.timelineDuration}
